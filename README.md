@@ -9,3 +9,5 @@ https://github.com/mewanindula/GPS-Tracking-System
 https://forum.arduino.cc/index.php?topic=379675.0
 https://www.geeetech.com/wiki/index.php/GPRS_Shield_V2.0#Soft_Start_Circuitry
 https://www.geeetech.com/wiki/index.php/Arduino_GPRS_Shield
+https://www.youtube.com/watch?v=mvfTxRGTHWc&index=7&list=WL
+https://www.youtube.com/watch?v=rQeOAisqf7w&index=6&list=WL&t=577s
