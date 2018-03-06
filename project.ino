@@ -1,206 +1,125 @@
-int8_t get_GPS(){
+#include <SoftwareSerial.h>
+char inChar;  //used to decode gps
+int index;
+char inData[150];
+char ttime[11];
+char longitude[10];
+char nsid[2];
+char latitude[11];
+char ewid[2];
+int8_t answer;
 
-    int8_t counter, answer;
-    long previous;
+char frame[150];
 
-    // First get the NMEA string
-    // Clean the input buffer
-    while( Serial.available() > 0) Serial.read(); 
-    // request Basic string
-    sendATcommand("AT+CGPSINF=0", "AT+CGPSINF=0\r\n\r\n", 2000);
+SoftwareSerial GPRS(7, 8);
 
-    counter = 0;
-    answer = 0;
-    memset(frame, '\0', 100);    // Initialize the string
-    previous = millis();
-    // this loop waits for the NMEA string
-    do{
+int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeout) {
+  uint8_t answer = 0;
+  char response[150];
+  unsigned long previous;
 
-        if(Serial.available() != 0){    
-            frame[counter] = Serial.read();
-            counter++;
-            // check if the desired answer is in the response of the module
-            if (strstr(frame, "OK") != NULL)    
-            {
-                answer = 1;
-            }
-        }
-        // Waits for the asnwer with time out
+  memset(response, '\0', 150);    // Initialize the string
+  while ( GPRS.available() > 0) GPRS.read();   // Clean the input buffer
+  GPRS.println(ATcommand);    // Send the AT command
+  index = 0;
+  previous = millis();
+  do {
+    if (GPRS.available() != 0) {
+      response[index] = GPRS.read();
+      index++;
+      if (strstr(response, expected_answer) != NULL) {
+        answer = 1;
+      }
     }
-    while((answer == 0) && ((millis() - previous) < 2000));  
-
-    frame[counter-3] = '\0'; 
-    
-    // Parses the string 
-    strtok(frame, ",");
-    strcpy(longitude,strtok(NULL, ",")); // Gets longitude
-    strcpy(latitude,strtok(NULL, ",")); // Gets latitude
-    strcpy(altitude,strtok(NULL, ".")); // Gets altitude 
-    strtok(NULL, ",");    
-    strcpy(date,strtok(NULL, ".")); // Gets date
-    strtok(NULL, ",");
-    strtok(NULL, ",");  
-    strcpy(satellites,strtok(NULL, ",")); // Gets satellites
-    strcpy(speedOTG,strtok(NULL, ",")); // Gets speed over ground. Unit is knots.
-    strcpy(course,strtok(NULL, "\r")); // Gets course
-
-    convert2Degrees(latitude);
-    convert2Degrees(longitude);
-    
-    return answer;
+  }
+  while ((answer == 0) && ((millis() - previous) < timeout));
+  Serial.println(response);
+  return answer;
 }
 
-/* convert2Degrees ( input ) - performs the conversion from input 
- * parameters in  DD°MM.mmm' notation to DD.dddddd° notation. 
- * 
- * Sign '+' is set for positive latitudes/longitudes (North, East)
- * Sign '-' is set for negative latitudes/longitudes (South, West)
- *  
- */
-int8_t convert2Degrees(char* input){
-
-    float deg;
-    float minutes;
-    boolean neg = false;    
-
-    //auxiliar variable
-    char aux[10];
-
-    if (input[0] == '-')
-    {
-        neg = true;
-        strcpy(aux, strtok(input+1, "."));
-
-    }
-    else
-    {
-        strcpy(aux, strtok(input, "."));
-    }
-
-    // convert string to integer and add it to final float variable
-    deg = atof(aux);
-
-    strcpy(aux, strtok(NULL, '\0'));
-    minutes=atof(aux);
-    minutes/=1000000;
-    if (deg < 100)
-    {
-        minutes += deg;
-        deg = 0;
-    }
-    else
-    {
-        minutes += int(deg) % 100;
-        deg = int(deg) / 100;    
-    }
-
-    // add minutes to degrees 
-    deg=deg+minutes/60;
 
 
-    if (neg == true)
-    {
-        deg*=-1.0;
-    }
-
-    neg = false;
-
-    if( deg < 0 ){
-        neg = true;
-        deg*=-1;
-    }
-    
-    float numberFloat=deg; 
-    int intPart[10];
-    int digit; 
-    long newNumber=(long)numberFloat;  
-    int size=0;
-    
-    while(1){
-        size=size+1;
-        digit=newNumber%10;
-        newNumber=newNumber/10;
-        intPart[size-1]=digit; 
-        if (newNumber==0){
-            break;
-        }
-    }
-   
-    int index=0;
-    if( neg ){
-        index++;
-        input[0]='-';
-    }
-    for (int i=size-1; i >= 0; i--)
-    {
-        input[index]=intPart[i]+'0'; 
-        index++;
-    }
-
-    input[index]='.';
-    index++;
-
-    numberFloat=(numberFloat-(int)numberFloat);
-    for (int i=1; i<=10 ; i++)
-    {
-        numberFloat=numberFloat*10;
-        digit= (long)numberFloat;          
-        numberFloat=numberFloat-digit;
-        input[index]=char(digit)+48;
-        index++;
-    }
-    input[index]='\0';
-
-
+void setup() {
+  GPRS.begin(19200);
+  Serial.begin(19200);
+  Serial.println("Starting...");
+  sendATcommand("AT", "OK", 2000);
+  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", "OK", 2000);
+  sendATcommand("AT+SAPBR=3,1,\"APN\",\"internet.beeline.ru\"", "OK", 2000);
+  sendATcommand("AT+SAPBR=3,1,\"USER\",\"beeline\"", "OK", 2000);
+  sendATcommand("AT+SAPBR=3,1,\"PWD\",\"beeline\"", "OK", 2000);
+  //sendATcommand("AT+SAPBR=1,1", "OK", 2000);
+  sendATcommand("AT+SAPBR=2,1", "OK", 2000);
+  //sendATcommand("AT CGPSIPR=19200", "OK", 2000);
+  sendATcommand("AT+CGPSPWR=1", "OK", 2000);
+  delay(30000);
+  //while( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 5000) || sendATcommand("AT+CGPSSTATUS?", "3D Fix", 5000)) == 0 );
+  
+  sendATcommand("AT+CGPSSTATUS?", "OK", 2000);
 }
 
-void send_HTTP(){
-    
-    uint8_t answer=0;
-    // Initializes HTTP service
-    answer = sendATcommand("AT+HTTPINIT", "OK", 10000);
-    if (answer == 1)
-    {
-        // Sets CID parameter
-        answer = sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
-        if (answer == 1)
-        {
-            // Sets url 
-            sprintf(aux_str, "AT+HTTPPARA=\"URL\",\"http://%s/vehicleLocationTransmitter.php?", url);
-            Serial.print(aux_str);
-            sprintf(frame, "vehicleID=1&latitude=%s&longitude=%s&altitude=%s&time=%s&satellites=%s", latitude, longitude, altitude, date, satellites);
-            Serial.print(frame);
-            answer = sendATcommand("\"", "OK", 5000);
-            if (answer == 1)
-            {
-                // Starts GET action
-                answer = sendATcommand("AT+HTTPACTION=0", "+HTTPACTION:0,200", 30000);
-                if (answer == 1)
-                {
+void Send2SRV() {
+  char tempstr[200];
+  char aux_str[30];
+  char url[] = "kdsystem.noip.me";
+  
+  //tempstr = String("AT+HTTPPARA=\"URL\",\"alielectronics.ru/gps/write.php?ttime=" + ttime + "&longitude=" + longitude + "&nsid=" + nsid +"&latitude=" + latitude +"&ewid=" + ewid +"\"");
+  //tempstr = "AT+HTTPPARA=\"URL\",\"alielectronics.ru/gps/write.php?ttime="+ttime+"\"";
+  //GPRS.println(temstr);
+  // Sets url 
+//  Serial.print("url = ".url);
+  sprintf(aux_str, "AT+HTTPPARA=\"URL\",\"http://%s/keeneye/write.php?", url);
+  Serial.print(aux_str);
+  sprintf(frame, "ttime=%s&latitude=%s&longitude=%s", ttime, latitude, longitude);
+  Serial.print(frame);
+  answer = sendATcommand("\"", "OK", 5000);
+  //Serial.println(answer);
+}
 
-                    Serial.println(F("Done!"));
-                }
-                else
-                {
-                    Serial.println(F("Error getting url"));
-                }
+void read_GPS() {
+  GPRS.println("AT+CGPSINF=2\r\n\r\n");  //ask SIM908 GPS info
+  read_String();  //read and store serial answer
+  Serial.println(inData);
+  
+  strtok(inData, ",");
+  strcpy(ttime, strtok(NULL, ",")); // Gets date
+  strcpy(longitude, strtok(NULL, ",")); // Gets longitude
+  strcpy(nsid, strtok(NULL, ",")); // Gets date
+  strcpy(latitude, strtok(NULL, ",")); // Gets latitude
+  strcpy(ewid, strtok(NULL, ",")); // Gets date
 
-            }
-            else
-            {
-                Serial.println(F("Error setting the url"));
-            }
-        }
-        else
-        {
-            Serial.println(F("Error setting the CID"));
-        }    
+  // convert2Degrees(latitude);  //fix value
+  // convert2Degrees(longitude); //fix value
+
+  //Serial.println("received data:");
+  Serial.println(nsid);
+  Serial.println(longitude);
+  Serial.println(ewid);
+  Serial.println(latitude);
+  Serial.println(ttime);
+  Serial.println("---------------------------------");
+  //Send2SRV();
+}
+
+void read_String () {
+  long previous;
+  index = 0;
+  answer = 0;
+  memset(inData, '\0', 150);    // Initialize the string
+  previous = millis();
+  do {
+    if (GPRS.available() != 0) {
+      inData[index] = GPRS.read();
+      index++;
+      if (strstr(inData, "OK") != NULL) { answer = 1;
+      }
     }
-    else
-    {
-        Serial.println(F("Error initializating"));
-    }
+  }
+  while ((answer == 0) && ((millis() - previous) < 2000));
+  inData[index - 3] = '\0';
+}
 
-    sendATcommand("AT+HTTPTERM", "OK", 5000);
-    
+void loop() {
+  read_GPS();
+  delay(5000);
 }
