@@ -1,151 +1,260 @@
-#include <SoftwareSerial.h>
-char inData[150];
-char ttime[11];
-char longitude[10];
-String old_lo="";
-char nsid[2];
-char latitude[11];
-String old_la="";
-char ewid[2];
-int8_t answer;
-String url="";
+#include<SoftwareSerial.h>
 
-SoftwareSerial GPRS(7, 8);
+extern uint8_t SmallFont[];
 
-int8_t sendATcommand(char* ATcommand, char* expected_answer, unsigned int timeout) {
-  uint8_t answer = 0;
-  char response[150];
-  unsigned long previous;
-  int index;
+#define rxPin 2
+#define txPin 3
 
-  memset(response, '\0', 150);    // Initialize the string
-  while ( GPRS.available() > 0) GPRS.read();   // Clean the input buffer
-  GPRS.println(ATcommand);    // Send the AT command
-  index = 0;
-  previous = millis();
-  do {
-    if (GPRS.available() != 0) {
-      response[index] = GPRS.read();
-      index++;
-      if (strstr(response, expected_answer) != NULL) {
-        answer = 1;
-      }
-    }
-  }
-  while ((answer == 0) && ((millis() - previous) < timeout));
-  Serial.println(response);
-  return answer;
-}
+SoftwareSerial mySerial(7, 8);
 
+char url[] = "http://kdsystem.noip.me:8026/keeneye/write.php?car_id=3";
 
+char response[200];
 
-void setup() {
-  GPRS.begin(19200);
-  Serial.begin(19200);
-  //Serial.println("Starting...");
-  sendATcommand("AT", "OK", 2000);
-  sendATcommand("AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", "OK", 3000);
-  sendATcommand("AT+SAPBR=3,1,\"APN\",\"internet.beeline.ru\"", "OK", 3000);
-  sendATcommand("AT+SAPBR=3,1,\"USER\",\"beeline\"", "OK", 3000);
-  sendATcommand("AT+SAPBR=3,1,\"PWD\",\"beeline\"", "OK", 3000);
-  //sendATcommand("AT+SAPBR=1,1", "OK", 2000);
-  sendATcommand("AT+SAPBR=2,1", "OK", 2000);
-  //sendATcommand("AT CGPSIPR=19200", "OK", 2000);
-  sendATcommand("AT+CGPSPWR=1", "OK", 2000);
-  //sendATcommand("AT+CUSD=1,\"*100#\"","OK",2000);
-  delay(3000);
-  //while( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 5000) || sendATcommand("AT+CGPSSTATUS?", "3D Fix", 5000)) == 0 );
-  
-  sendATcommand("AT+CGPSSTATUS?", "OK", 2000);
-}
+char latitude[15];
+char longitude[15];
+char altitude[16];
+char date[24];
+char TTFF[3];
+char satellites[3];
+char speedOTG[10];
+char course[15];
 
-void read_GPS() {
-  //char aux_str[30];
-  //char frame[80];
-  //char url[150];
-  GPRS.println("AT+CGPSINF=2\r\n\r\n");  //ask SIM908 GPS info
-  read_String();  //read and store serial answer
-  //Serial.println(inData);
-  
-  strtok(inData, ",");
-  strcpy(ttime, strtok(NULL, ",")); // Gets date
-  strcpy(longitude, strtok(NULL, ",")); // Gets longitude
-  strcpy(nsid, strtok(NULL, ",")); // Gets date
-  strcpy(latitude, strtok(NULL, ",")); // Gets latitude
-  strcpy(ewid, strtok(NULL, ",")); // Gets date
+void setup(){
+    mySerial.begin(19200);
+    Serial.begin(19200); 
 
-  // convert2Degrees(latitude);  //fix value
-  // convert2Degrees(longitude); //fix value
+    Serial.println("Starting...");
+    power_on();
 
-  Serial.println("received data:");
-  Serial.println(nsid);
-  Serial.println(longitude);
-  Serial.println(ewid);
-  Serial.println(latitude);
-  Serial.println(ttime);
-  Serial.println("---------------------------------");
-  String url("AT+HTTPPARA=\"URL\",\"kdsystem.noip.me/keeneye/write.php?car_id=001&lat=");
-  String lat(latitude);
-  String lon(longitude);
-  url = url + lat;
-  url = url + "&lon=";
-  url = url + lon;
+    // starts the GPS and waits for signal
+    start_GPS();
 
-  if ((old_la != lat) or (old_lo != lon)) {
-    old_la = lat;
-    old_lo = lon;
-    //old_longitude = longitude;
-    Serial.println(old_la);
-    Serial.println(old_lo);
-    sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
-    sendATcommand("AT+HTTPINIT", "OK", 1000);
-          Serial.println(url);
-          GPRS.println(url);        
+    while (sendATcommand("AT+CREG?", "+CREG: 0,1", 2000) == 0);
 
-//    send2SRV;
-  }
-}
-
-void send2SRV ()
-{
-  answer = sendATcommand("AT+HTTPINIT", "OK", 10000);
-  //Serial.print("answer is "+answer);
-
-  if (answer == 1)
+    sendATcommand("AT+SAPBR=3,1,\"Contype\",\"GPRS\"", "OK", 2000);
+    sendATcommand("AT+SAPBR=3,1,\"APN\",\"internet.beeline.ru\"", "OK", 3000);
+    sendATcommand("AT+SAPBR=3,1,\"USER\",\"beeline\"", "OK", 3000);
+    sendATcommand("AT+SAPBR=3,1,\"PWD\",\"beeline\"", "OK", 3000);
+    // gets the GPRS bearer
+    while (sendATcommand("AT+SAPBR=1,1", "OK", 20000) == 0)
     {
-      // Sets CID parameter
-      answer = sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
+      delay(5000);
+    }
+    sendATcommand("AT+SAPBR=2,1", "OK", 3000);
 
-      if (answer == 1)
-        {
+}
+
+void loop(){
+
+    // gets GPS data
+    get_GPS();
+    
+    // sends GPS data to the script
+    send_HTTP();
+    Serial.println("................................DELAY...");
+    //sendNMEALocation("81596199",frame);
+    delay(5000);
+}
+
+void power_on(){
+
+    uint8_t answer=0;
+    // checks if the module is started
+    answer = sendATcommand("AT", "OK", 2000);
+    if (answer == 0)
+    {
+        // waits for an answer from the module
+        while(answer == 0){  
+            // Send AT every two seconds and wait for the answer   
+            answer = sendATcommand("AT", "OK", 2000);    
         }
     }
+}
 
+int8_t start_GPS(){
   
+    // starts the GPS
+    //while(sendATcommand("AT+CGPSPWR=1", "OK", 2000)==0);
+    //while(sendATcommand("AT+CGPSRST=1", "OK", 2000)==0);
+    sendATcommand("AT+CGPSPWR=1", "OK", 2000);
+    sendATcommand("AT+CGPSRST=1", "OK", 2000);
+    // waits for fix GPS
+    while(( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 5000) || 
+        sendATcommand("AT+CGPSSTATUS?", "3D Fix", 5000)) == 0 ) );
+
+    return 1;
 }
 
-void read_String ()
-{
-  int index;
-  long previous;
-  index = 0;
-  answer = 0;
-  memset(inData, '\0', 150);    // Initialize the string
-  previous = millis();
-  do {
-    if (GPRS.available() != 0) {
-      inData[index] = GPRS.read();
-      index++;
-      if (strstr(inData, "OK") != NULL) { answer = 1;
-      }
+int8_t get_GPS(){
+    
+    int8_t answer;
+    char * auxChar;
+    // request Basic string
+    sendATcommand("AT+CGPSINF=0", "O", 8000);
+ 
+   
+
+    auxChar = strstr(response, "+CGPSINF:");
+    if (auxChar != NULL)    
+    {
+         // Parses the string 
+      memset(longitude, '\0', 15);
+      memset(latitude, '\0', 15);
+      memset(altitude, '\0', 16);
+      memset(date, '\0', 24);
+      memset(TTFF, '\0', 3);
+      memset(satellites, '\0', 3);
+      memset(speedOTG, '\0', 10);
+      memset(course, '\0', 15);
+    
+      strcpy (response, auxChar);
+      Serial.println(response);
+      
+      strtok(response, ",");
+      strcpy(longitude,strtok(NULL, ",")); // Gets longitude
+      strcpy(latitude,strtok(NULL, ",")); // Gets latitude
+      strcpy(altitude,strtok(NULL, ",")); // Gets altitude    
+      strcpy(date,strtok(NULL, ",")); // Gets date
+      strcpy(TTFF,strtok(NULL, ","));  
+      strcpy(satellites,strtok(NULL, ",")); // Gets satellites
+      strcpy(speedOTG,strtok(NULL, ",")); // Gets speed over ground. Unit is knots.
+      strcpy(course,strtok(NULL, "\r")); // Gets course
+
+      answer = 1;
     }
-  }
-  while ((answer == 0) && ((millis() - previous) < 2000));
-  inData[index - 3] = '\0';
+    else
+      answer = 0;
+
+    return answer;
 }
 
-void loop() {
-  read_GPS();
-  //Send2SRV();
-  delay(10000);
+void sendNMEALocation(char * cellPhoneNumber, char * message) 
+{ 
+    char ctrlZString[2];  
+    char sendSMSString[100];    
+    
+    // Started sendNMEALocation.
+    memset(ctrlZString, '\0', 2);
+    ctrlZString[0] = 26;  
+    
+    memset(sendSMSString, '\0', 100); 
+    sprintf(sendSMSString,"AT+CMGS=\"%s\"",cellPhoneNumber);            
+     
+    // request Basic string
+    sendATcommand(sendSMSString, ">", 2000);
+    mySerial.println(message);
+    sendATcommand(ctrlZString, "OK", 6000); 
+    //Ended sendNMEALocation.
+    
+} 
+
+int8_t send_HTTP(){
+  
+    int8_t answer;
+    char aux_str[200];
+    char frame[200];
+    // Initializes HTTP service
+    answer = sendATcommand("AT+HTTPINIT", "OK", 10000);
+    if (answer == 1)
+    {
+        // Sets CID parameter
+        answer = sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
+        if (answer == 1)
+        {
+            // Sets url 
+            memset(aux_str, '\0', 200);
+            sprintf(aux_str, "AT+HTTPPARA=\"URL\",\"%s", url);
+            //limpar antesLIMPAR ANTES
+            mySerial.print(aux_str);
+            Serial.println(aux_str);
+            memset(frame, '\0', 200);
+            sprintf(frame, "&lat=%s&lon=%s&alt=%s&date=%s&TTFF=%s&sat=%s&spd=%s&curs=%s", latitude, longitude, altitude, date, TTFF, satellites, speedOTG, course);
+            Serial.println(frame);
+            mySerial.print(frame);
+            
+            answer = sendATcommand("\"", "OK", 5000);
+            if (answer == 1)
+            {
+                // Starts GET action
+                answer = sendATcommand("AT+HTTPACTION=0", "+HTTPACTION: 0,200", 30000);
+                if (answer == 1)
+                {
+
+                    Serial.println(F("Done!"));
+                }
+                else
+                {
+                    Serial.println(F("Error getting url"));
+                }
+
+            }
+            else
+            {
+                Serial.println(F("Error setting the url"));
+            }
+        }
+        else
+        {
+            Serial.println(F("Error setting the CID"));
+        }    
+    }
+    else
+    {
+        Serial.println(F("Error initializating"));
+    }
+
+    sendATcommand("AT+HTTPTERM", "OK", 5000);
+    return answer;
+}
+
+
+int8_t sendATcommand(char* ATcommand, char* expected_answer1, unsigned int timeout){
+
+    uint8_t x=0,  answer=0;
+    unsigned long previous;
+    char readVar[200];
+    char * auxChar;
+    
+
+    memset(response, '\0', 200);    // Initialize the string
+    memset(readVar, '\0', 200);    // Initialize the string
+
+    while( mySerial.available() > 0) mySerial.read();    // Clean the input buffer
+    while( Serial.available() > 0) Serial.read();    // Clean the input buffer
+ 
+    mySerial.write(ATcommand);    // Send the AT command 
+    mySerial.write("\r\n\r\n");    // Send enter
+    
+    Serial.println(ATcommand);
+    
+ 
+    x = 0;
+    previous = millis();
+
+    // this loop waits for the answer
+    do{
+        if(mySerial.available() != 0){    
+            readVar[x] = mySerial.read();
+            x++;
+            // check if the desired answer is in the response of the module
+            auxChar = strstr(readVar, expected_answer1);
+            if (auxChar != NULL)    
+            {
+                if( strstr(readVar, "+CGPSINF:") == NULL)
+                  strcpy (response, auxChar);
+                else
+                  strcpy (response, readVar);
+    
+                answer = 1;
+            }
+        }
+        // Waits for the asnwer with time out
+    }
+    while((answer == 0) && ((millis() - previous) < timeout));  
+
+    if(auxChar == NULL)
+      Serial.println(readVar);
+    
+    return answer;
 }
