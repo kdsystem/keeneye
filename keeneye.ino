@@ -23,8 +23,13 @@ void setup(){
     mySerial.begin(19200);
     Serial.begin(19200); 
 
-    Serial.println("Starting...");
+    Serial.println("Starting...");    
     power_on();
+
+    //sendATcommand("AT+CUSD=1,\"*102#\"", "OK", 2000);
+    //sendATcommand("AT+CMGR=2", "OK",2000);
+    //delay(10000);
+    //sendATcommand("AT+CUSD=1,\"*100#\"","OK", 2000);
 
     // starts the GPS and waits for signal
     start_GPS();
@@ -123,10 +128,11 @@ int8_t get_GPS(){
       Serial.println(response);
       
       strtok(response, ",");
+      //0,6001.977800,3025.665300,49.800000,20180616180328.000,0,12,2.981720,91.510002 UTC!!!!
       strcpy(longitude,strtok(NULL, ",")); // Gets longitude
       strcpy(latitude,strtok(NULL, ",")); // Gets latitude
       strcpy(altitude,strtok(NULL, ",")); // Gets altitude    
-      strcpy(date,strtok(NULL, ",")); // Gets date
+      strcpy(date,strtok(NULL, ",")); // Gets date 
       strcpy(TTFF,strtok(NULL, ","));  
       strcpy(satellites,strtok(NULL, ",")); // Gets satellites
       strcpy(speedOTG,strtok(NULL, ",")); // Gets speed over ground. Unit is knots.
