@@ -16,7 +16,7 @@ char aux;
 int x = 0;
 char N_S,W_E;
 
-char url[] = "pruebas.libelium.com";
+char url[] = "kdsystem.noip.me/keeneye/write.php?car_id=001";
 char frame[200];
 
 char latitude[15];
