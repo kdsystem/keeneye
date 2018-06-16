@@ -4,6 +4,7 @@
 #define txPin 3
 #define car_id "1"
 float volt;
+int ledPin = 10; // к пину 3 подключён cветодиод (13 - встроенный)
 SoftwareSerial mySerial(7, 8);
 
 char url[] = "http://kdsystem.noip.me:8026/keeneye/write.php?car_id="car_id;
@@ -23,7 +24,8 @@ void setup(){
     mySerial.begin(19200);
     Serial.begin(19200); 
 
-    Serial.println("Starting...");    
+    Serial.println("Starting...");
+    pinMode(ledPin, OUTPUT);
     power_on();
 
     //sendATcommand("AT+CUSD=1,\"*102#\"", "OK", 2000);
@@ -67,6 +69,7 @@ float get_power()
 void loop(){
     // gets GPS data
     get_GPS();
+    digitalWrite(ledPin, 1);
     
     // sends GPS data to the script
     send_HTTP();
@@ -82,6 +85,7 @@ void power_on(){
     answer = sendATcommand("AT", "OK", 2000);
     if (answer == 0)
     {
+        delay(200);
         // waits for an answer from the module
         while(answer == 0){  
             // Send AT every two seconds and wait for the answer   
@@ -91,15 +95,21 @@ void power_on(){
 }
 
 int8_t start_GPS(){
-  
+  boolean state = true;  
     // starts the GPS
     //while(sendATcommand("AT+CGPSPWR=1", "OK", 2000)==0);
     //while(sendATcommand("AT+CGPSRST=1", "OK", 2000)==0);
     sendATcommand("AT+CGPSPWR=1", "OK", 2000);
     sendATcommand("AT+CGPSRST=1", "OK", 2000);
     // waits for fix GPS
-    while(( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 5000) || 
-        sendATcommand("AT+CGPSSTATUS?", "3D Fix", 5000)) == 0 ) );
+    while(( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 2000) || sendATcommand("AT+CGPSSTATUS?", "3D Fix", 2000)) == 0 ) ){
+      state = !state;
+      //delay(20);
+      if (state) {
+        digitalWrite(ledPin, 1);
+      }
+     else digitalWrite(ledPin, 0);
+    }
 
     return 1;
 }
