@@ -1,5 +1,5 @@
 #include<SoftwareSerial.h>
-extern uint8_t SmallFont[];
+//extern uint8_t SmallFont[];
 #define rxPin 2
 #define txPin 3
 #define car_id "1"
