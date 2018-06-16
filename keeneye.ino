@@ -3,6 +3,7 @@
 #define rxPin 2
 #define txPin 3
 #define car_id "1"
+float volt;
 SoftwareSerial mySerial(7, 8);
 
 char url[] = "http://kdsystem.noip.me:8026/keeneye/write.php?car_id="car_id;
@@ -41,6 +42,21 @@ void setup(){
     }
     sendATcommand("AT+SAPBR=2,1", "OK", 3000);
 
+}
+
+float get_power()
+{
+  float answer=0;
+ //Узнаем напряжение питания платы
+    ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
+    ADCSRA |= _BV(ADSC); // начало преобразований
+    while (bit_is_set(ADCSRA, ADSC)); // измерение
+    uint8_t low = ADCL; // сначала нужно прочесть ADCL - это запирает ADCH
+    uint8_t high = ADCH; // разлочить оба
+    float volt = (high << 8) | low;
+    volt = (1.1 * 1023.0 * 1000) / volt; // Результат Vcc в милливольтах 
+    answer = volt/1000;
+    return answer;
 }
 
 void loop(){
@@ -164,7 +180,9 @@ int8_t send_HTTP(){
             mySerial.print(aux_str);
             Serial.println(aux_str);
             memset(frame, '\0', 200);
-            sprintf(frame, "&lat=%s&lon=%s&alt=%s&date=%s&TTFF=%s&sat=%s&spd=%s&curs=%s", latitude, longitude, altitude, date, TTFF, satellites, speedOTG, course);
+            volt = get_power();
+            //Serial.println(volt);
+            sprintf(frame, "&lat=%s&lon=%s&alt=%s&date=%s&TTFF=%s&sat=%s&spd=%s&curs=%s&volt=%s", latitude, longitude, altitude, date, TTFF, satellites, speedOTG, course, volt);
             Serial.println(frame);
             mySerial.print(frame);
             
