@@ -3,7 +3,13 @@
  @mysqli_query ($db, 'set character_set_results = "utf8"');
  //mysql_query ($db, "set character_set_results = 'utf8'");
  $car_id=$_GET['car_id'];
- //3025.711000&lon=6001.979700
+ $data=date('Y-m-d H:i:s');
+ $alt=$_GET['alt'];
+ $ttff=$_GET['TTFF'];
+ $sat=$_GET['sat'];
+ $spd=$_GET['spd'];
+ $curs=$_GET['curs'];
+
  $llat=$_GET['lat'];
  $llon=$_GET['lon'];
  $degWhole = intval($llon/100);
@@ -13,12 +19,9 @@
  $degWhole = intval($llat/100);
  $degDec = ($llat - $degWhole*100)/60;
  $lat = $degWhole + $degDec;
- //echo "<br/>";
- //echo $lat;
- $data=date('Y-m-d H:i:s');
-
- $query="INSERT into tracker SET longitude=".$lon.", latitude=".$lat.", car_id=".$car_id;
- $res = mysqli_query($db, $query);
+ 
+ $query="INSERT into tracker SET longitude=".$lon.", latitude=".$lat.", car_id=".$car_id.", altitude=".$alt.", speedOTG=".$spd.", course=".$curs;
+// $res = mysqli_query($db, $query);
 
  if(!mysqli_query($db, $query))
     echo "error=".$query;
