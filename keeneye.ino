@@ -4,10 +4,11 @@
 #define txPin 3
 #define car_id "1"
 float volt;
-int ledPin = 10; // к пину 3 подключён cветодиод (13 - встроенный)
+int redPin = 10; // к пину 10 подключён красный cветодиод (13 - встроенный)
+int greedPin = 9; // к пину 9 подключён зеленый cветодиод (13 - встроенный)
 SoftwareSerial mySerial(7, 8);
 
-char url[] = "http://kdsystem.noip.me:8026/keeneye/write.php?car_id="car_id;
+char url[] = "http://itstories.ru/write.php?car_id="car_id;
 
 char response[200];
 
@@ -25,7 +26,10 @@ void setup(){
     Serial.begin(19200); 
 
     Serial.println("Starting...");
-    pinMode(ledPin, OUTPUT);
+    pinMode(redPin, OUTPUT);
+    pinMode(greedPin, OUTPUT);
+    volt = get_power();
+    Serial.print("VOLT__________________");Serial.println(volt);
     power_on();
 
     //sendATcommand("AT+CUSD=1,\"*102#\"", "OK", 2000);
@@ -69,7 +73,7 @@ float get_power()
 void loop(){
     // gets GPS data
     get_GPS();
-    digitalWrite(ledPin, 1);
+    digitalWrite(redPin, 1);
     
     // sends GPS data to the script
     send_HTTP();
@@ -102,15 +106,14 @@ int8_t start_GPS(){
     sendATcommand("AT+CGPSPWR=1", "OK", 2000);
     sendATcommand("AT+CGPSRST=1", "OK", 2000);
     // waits for fix GPS
-    while(( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 2000) || sendATcommand("AT+CGPSSTATUS?", "3D Fix", 2000)) == 0 ) ){
+    while(( (sendATcommand("AT+CGPSSTATUS?", "2D Fix", 5000) || sendATcommand("AT+CGPSSTATUS?", "3D Fix", 5000)) == 0 ) ){
       state = !state;
       //delay(20);
       if (state) {
-        digitalWrite(ledPin, 1);
+        digitalWrite(redPin, 1);
       }
-     else digitalWrite(ledPin, 0);
+     else digitalWrite(redPin, 0);
     }
-
     return 1;
 }
 
@@ -182,6 +185,7 @@ int8_t send_HTTP(){
     char aux_str[200];
     char frame[200];
     // Initializes HTTP service
+    digitalWrite(greedPin, 0);
     answer = sendATcommand("AT+HTTPINIT", "OK", 10000);
     if (answer == 1)
     {
@@ -189,6 +193,7 @@ int8_t send_HTTP(){
         answer = sendATcommand("AT+HTTPPARA=\"CID\",1", "OK", 5000);
         if (answer == 1)
         {
+            digitalWrite(greedPin, 1);
             // Sets url 
             memset(aux_str, '\0', 200);
             sprintf(aux_str, "AT+HTTPPARA=\"URL\",\"%s", url);
@@ -197,7 +202,7 @@ int8_t send_HTTP(){
             Serial.println(aux_str);
             memset(frame, '\0', 200);
             volt = get_power();
-            //Serial.println(volt);
+            Serial.print("VOLT__________________");Serial.println(volt);
             sprintf(frame, "&lat=%s&lon=%s&alt=%s&date=%s&TTFF=%s&sat=%s&spd=%s&curs=%s&volt=%s", latitude, longitude, altitude, date, TTFF, satellites, speedOTG, course, volt);
             Serial.println(frame);
             mySerial.print(frame);
@@ -227,6 +232,7 @@ int8_t send_HTTP(){
         {
             Serial.println(F("Error setting the CID"));
         }    
+    digitalWrite(greedPin, 0);
     }
     else
     {
